@@ -3,7 +3,7 @@
 BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 mkdir -p ~/.emacs.d
-[ -L ~/.emacs.d/init.el ] || ln -s ~/emacs/init.el ~/.emacs.d/init.el
+[ -L ~/.emacs.d/init.el ] || ln -s ${BASEDIR}/emacs/init.el ~/.emacs.d/init.el
 
 # # vim
 # ln -s ${BASEDIR}/vimrc ~/.vimrc
