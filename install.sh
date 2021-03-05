@@ -1,9 +1,11 @@
 #!/bin/bash
 
-BASEDIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-mkdir -p ~/.emacs.d
-[ -L ~/.emacs.d/init.el ] || ln -s ${BASEDIR}/emacs/init.el ~/.emacs.d/init.el
+EMACS_PATH = ~/.emacs.d
+mkdir -p ${SPIN_EMACS_PATH}
+[ -L ${SPIN_EMACS_PATH}/init.el ] || ln -s ${DOTFILES}/emacs/init.el ${SPIN_EMACS_PATH}/init.el
+[ -L ${SPIN_EMACS_PATH}/scratch-template ] || ln -s ${DOTFILES}/emacs/scratch-template ${SPIN_EMACS_PATH}/scratch-template
 
 # # vim
 # ln -s ${BASEDIR}/vimrc ~/.vimrc

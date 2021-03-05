@@ -26,7 +26,7 @@
 	(insert-file-contents (expand-file-name "scratch-template" current-dir))
 	(buffer-string)))
 
-(setq initial-major-mode 'org-mode)
+(setq initial-major-mode 'ruby-mode)
 
 ;; Packages can be fetched from different mirrors, [[http://melpa.milkbox.net/#/][melpa]] is the largest
 ;;    archive and is well maintained.
