@@ -14,13 +14,19 @@ mkdir -p $SPIN_EMACS_PATH || panic "Failed to mkdir -p ${SPIN_EMACS_PATH}"
 if ! command -v tig &> /dev/null; then
   [ dpkg -s libncurses5-dev ] || sudo apt-get install -y libncurses5-dev
   [ dpkg -s libncursesw5-dev ] || sudo apt-get install -y libncursesw5-dev
-  mkdir -p /src/github.com/jonas
-  cd /src/github.com/jonas
-  git clone https://github.com/jonas/tig.git
-  cd ./tig
-  make
-  make install
-  ln -s /home/spin/bin/tig /usr/local/bin/tig
+
+  if [ ! -d "/src/github.com/jonas/tig" ]; then
+    mkdir -p /src/github.com/jonas && cd /src/github.com/jonas
+    git clone https://github.com/jonas/tig.git || panic "Failed to clone jonas/tig"
+  fi
+
+  if [ ! -d "/home/spin/bin/tig" ]; then
+    cd /src/github.com/jonas/tig
+    make || panic "Failed to make tig"
+    make install || panic "Failed to install tig"
+  fi
+
+  [ -L /usr/local/bin/tig ] || ln -s /home/spin/bin/tig /usr/local/bin/tig || panic "Failed to symlink tig"
 fi
 [ -L ${HOME}/.tigrc ] || ln -s ${DOTFILES}/tig/.tigrc || panic "Failed to link .tigrc"
 # # vim
