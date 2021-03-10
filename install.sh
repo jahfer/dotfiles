@@ -6,6 +6,10 @@ panic() {
 
 DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# packages to downlaod
+TIG_VERSION="2.5.3"
+NNN_VERSION="v3.5"
+
 # Create executable folder
 mkdir -p $HOME/bin
 
@@ -23,15 +27,20 @@ if ! command -v tig &> /dev/null; then
   [ dpkg -s libncurses5-dev ] || sudo apt-get install -y libncurses5-dev
   [ dpkg -s libncursesw5-dev ] || sudo apt-get install -y libncursesw5-dev
 
-  if [ ! -d "/src/github.com/jonas/tig" ]; then
-    mkdir -p /src/github.com/jonas && cd /src/github.com/jonas
-    git clone https://github.com/jonas/tig.git || panic "Failed to clone jonas/tig"
-  fi
+  wget -O - "https://github.com/jonas/tig/releases/download/tig-${TIG_VERSION}/tig-${TIG_VERSION}.tar.gz" | tar -zxf - || panic "Failed to download tig"
 
   if [ ! -d "/home/spin/bin/tig" ]; then
-    cd /src/github.com/jonas/tig
+    cd ./tig-${TIG_VERSION}
     make || panic "Failed to make tig"
     make install || panic "Failed to install tig"
   fi
 fi
 [ -L $HOME/.tigrc ] || ln -s ${DOTFILES}/tig/tigrc ${HOME}/.tigrc || panic "Failed to symlink .tigrc"
+
+# Install nnn
+if ! command -v nnn &> /dev/null; then
+  sudo apt-get install -y pkg-config libncursesw5-dev libreadline-dev || panic "Failed to install dependencies for nnn"
+  wget -O - "https://github.com/jarun/nnn/releases/download/nnn-${NNN_VERSION}/nnn-${NNN_VERSION}.tar.gz" | tar -zxf - || panic "Failed to download nnn"
+  cd ./nnn-${NNN_VERSION}
+  sudo make strip install
+fi
