@@ -1,6 +1,1 @@
-source $HOME/dotfiles/system/env
-source $HOME/dotfiles/system/alias
-source $HOME/dotfiles/system/functions
-source $HOME/dotfiles/system/prompt
-
 for f (~/dotfiles/system/**/*\.zsh(N.)) source $f
