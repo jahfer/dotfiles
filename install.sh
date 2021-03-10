@@ -41,6 +41,6 @@ fi
 if ! command -v nnn &> /dev/null; then
   sudo apt-get install -y pkg-config libncursesw5-dev libreadline-dev || panic "Failed to install dependencies for nnn"
   wget -O - "https://github.com/jarun/nnn/releases/download/${NNN_VERSION}/nnn-${NNN_VERSION}.tar.gz" | tar -zxf - || panic "Failed to download nnn"
-  cd ./nnn-${NNN_VERSION}
+  cd ./${NNN_VERSION}
   sudo make strip install
 fi
