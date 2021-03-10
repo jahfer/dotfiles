@@ -8,7 +8,7 @@ DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # packages to downlaod
 TIG_VERSION="2.5.3"
-NNN_VERSION="v3.5"
+NNN_VERSION="3.5"
 
 # Create executable folder
 mkdir -p $HOME/bin
@@ -40,7 +40,7 @@ fi
 # Install nnn
 if ! command -v nnn &> /dev/null; then
   sudo apt-get install -y pkg-config libncursesw5-dev libreadline-dev || panic "Failed to install dependencies for nnn"
-  wget -O - "https://github.com/jarun/nnn/releases/download/${NNN_VERSION}/nnn-${NNN_VERSION}.tar.gz" | tar -zxf - || panic "Failed to download nnn"
-  cd ./${NNN_VERSION}
+  wget -O - "https://github.com/jarun/nnn/releases/download/v${NNN_VERSION}/nnn-v${NNN_VERSION}.tar.gz" | tar -zxf - || panic "Failed to download nnn"
+  cd ./nnn-${NNN_VERSION}
   sudo make strip install
 fi
