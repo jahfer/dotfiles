@@ -11,6 +11,18 @@ mkdir -p $SPIN_EMACS_PATH || panic "Failed to mkdir -p ${SPIN_EMACS_PATH}"
 [ -L ${SPIN_EMACS_PATH}/init.el ] || ln -s ${DOTFILES}/emacs/init.el ${SPIN_EMACS_PATH}/init.el || panic "Failed to link emacs init.el"
 [ -L ${SPIN_EMACS_PATH}/scratch-template ] || ln -s ${DOTFILES}/emacs/scratch-template ${SPIN_EMACS_PATH}/scratch-template || panic "Failed to link emacs scratch-template"
 
+if ! command -v tig &> /dev/null; then
+  [ dpkg -s libncurses5-dev ] || sudo apt-get install -y libncurses5-dev
+  [ dpkg -s libncursesw5-dev ] || sudo apt-get install -y libncursesw5-dev
+  mkdir -p /src/github.com/jonas
+  cd /src/github.com/jonas
+  git clone https://github.com/jonas/tig.git
+  cd ./tig
+  make
+  make install
+  ln -s /home/spin/bin/tig /usr/local/bin/tig
+fi
+[ -L ${HOME}/.tigrc ] || ln -s ${DOTFILES}/tig/.tigrc || panic "Failed to link .tigrc"
 # # vim
 # ln -s ${BASEDIR}/vimrc ~/.vimrc
 # ln -s ${BASEDIR}/vim/ ~/.vim
