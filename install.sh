@@ -10,13 +10,13 @@ DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 mkdir -p $HOME/bin
 
 # Install zsh config
-ln -sf ${DOTFILES}/runcom/zshrc ${HOME}/.zshrc || panic "Failed to link .zshrc"
+ln -sf ${DOTFILES}/runcom/zshrc ${HOME}/.zshrc || panic "Failed to symlink .zshrc"
 
 # Config Emacs
 SPIN_EMACS_PATH="${HOME}/.emacs.d"
 mkdir -p $SPIN_EMACS_PATH || panic "Failed to mkdir -p ${SPIN_EMACS_PATH}"
-[ -L ${SPIN_EMACS_PATH}/init.el ] || ln -s ${DOTFILES}/emacs/init.el ${SPIN_EMACS_PATH}/init.el || panic "Failed to link emacs init.el"
-[ -L ${SPIN_EMACS_PATH}/scratch-template ] || ln -s ${DOTFILES}/emacs/scratch-template ${SPIN_EMACS_PATH}/scratch-template || panic "Failed to link emacs scratch-template"
+[ -L ${SPIN_EMACS_PATH}/init.el ] || ln -s ${DOTFILES}/emacs/init.el ${SPIN_EMACS_PATH}/init.el || panic "Failed to symlink emacs init.el"
+[ -L ${SPIN_EMACS_PATH}/scratch-template ] || ln -s ${DOTFILES}/emacs/scratch-template ${SPIN_EMACS_PATH}/scratch-template || panic "Failed to symlink emacs scratch-template"
 
 # Install Tig
 if ! command -v tig &> /dev/null; then
@@ -33,7 +33,5 @@ if ! command -v tig &> /dev/null; then
     make || panic "Failed to make tig"
     make install || panic "Failed to install tig"
   fi
-
-  [ -L $HOME/bin/tig ] || ln -s /home/spin/bin/tig ${HOME}/bin/tig || panic "Failed to symlink tig"
 fi
-[ -L $HOME/.tigrc ] || ln -s ${DOTFILES}/tig/tigrc ${HOME}/.tigrc || panic "Failed to link .tigrc"
+[ -L $HOME/.tigrc ] || ln -s ${DOTFILES}/tig/tigrc ${HOME}/.tigrc || panic "Failed to symlink .tigrc"
