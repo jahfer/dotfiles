@@ -34,6 +34,6 @@ if ! command -v tig &> /dev/null; then
     make install || panic "Failed to install tig"
   fi
 
-  [ -L $HOME/bin/tig ] || ln -s /home/spin/bin/tig /usr/local/bin/tig || panic "Failed to symlink tig"
+  [ -L $HOME/bin/tig ] || ln -s /home/spin/bin/tig ${HOME}/bin/tig || panic "Failed to symlink tig"
 fi
-[ -L ${HOME}/.tigrc ] || ln -s ${DOTFILES}/tig/tigrc ${HOME}/.tigrc || panic "Failed to link .tigrc"
+[ -L $HOME/.tigrc ] || ln -s ${DOTFILES}/tig/tigrc ${HOME}/.tigrc || panic "Failed to link .tigrc"
