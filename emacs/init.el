@@ -3,6 +3,7 @@
 ;;    need to initialize =package=.
 (require 'package)
 (setq package-enable-at-startup nil)
+(package-initialize)
 
 (server-start t t)
 
@@ -133,9 +134,8 @@ PACKAGE is installed and the current version is deleted."
 
   (let* ((packages
           '(
-	    use-package
-	    auto-complete      ; auto completion
 	    use-package        ; package configuration
+	    auto-complete      ; auto completion
 ;;	    cider              ; clojure integrated development environment and REPL
 ;;	    clojure-mode       ; major mode for clojure code
             flx-ido            ; flx integration for ido
@@ -153,14 +153,14 @@ PACKAGE is installed and the current version is deleted."
 	    key-chord
 	    markdown-mode
 	    org-brain
-      magit
+	    magit
 	    polymode
 	    htmlize
-      hydra
-      avy
-      deft
-      graphviz-dot-mode
-      zetteldeft
+	    hydra
+	    avy
+	    deft
+	    graphviz-dot-mode
+	    zetteldeft
 ;;	    helm
 ;;	    helm-fuzzy-find
 	    ;;	    helm-projectile
@@ -178,7 +178,6 @@ PACKAGE is installed and the current version is deleted."
 	    lsp-mode
 	    tuareg
 	    doom-themes
-	    shadowenv
 	    org-sidebar
 	    visual-fill-column
 	    toml-mode
@@ -291,7 +290,7 @@ PACKAGE is installed and the current version is deleted."
 ;;    Change the color-theme to =monokai= (downloaded using =package=).
                                         ;(load-theme 'challenger-deep t)
 (add-to-list 'custom-theme-load-path "~/.emacs.d/themes/")
-(load-theme 'doom-Iosvkem t)
+;;(load-theme 'doom-Iosvkem t)
 ;;(load-theme 'vscode-default-dark t)
 ;;(load-theme 'doom-palenight t)
 ;;(load-theme 'pastelmac t)
@@ -455,12 +454,6 @@ PACKAGE is installed and the current version is deleted."
 ;; Increase GC threshold
 (setq gc-cons-threshold 20000000)
 
-;; Shadowenv
-(use-package shadowenv
-  :init
-  (setq shadowenv-binary-location "/usr/local/bin/shadowenv")
-  :hook (after-init . shadowenv-global-mode))
-
 ;; Language Features
 (use-package ruby-end)
 
@@ -545,255 +538,6 @@ PACKAGE is installed and the current version is deleted."
 ;;   :hook
 ;;   ((org-brain-visualize-mode . org-brain-polymode)))
 (default-font-height)
-
-;; Org mode
-(use-package org
-  :init
-  (require 'org-ql)
-  (require 'org-tempo) ;; <s<tab> for source block
-  (require 'browse-url)
-  (org-id-update-id-locations)
-  (run-at-time "24:01" nil 'org-id-update-id-locations)
-  (add-hook 'org-agenda-finalize-hook 'org-id-update-id-locations 'append)
-  (defun jh/el ()
-    (interactive)
-    (print (cadr (org-element-at-point))))
-  (defun jh/find-resources ()
-    (interactive)
-    (let ((headline (org-element-property :title (org-element-at-point)))
-	  (links (save-restriction
-		   (org-narrow-to-subtree)
-		   (org-element-map (org-element-parse-buffer) 'link
-		     (lambda (item)
-		       (message (org-element-property :type item))
-		       (when (not (equal "id" (org-element-property :type item)))
-			 (concat "[["
-				 (org-element-property :raw-link item)
-				 "]["
-				 (or (car (org-element-contents item))
-				     (org-element-property :raw-link item))
-				 "]]\n"
-				 )))))))
-      (with-current-buffer (get-buffer-create "*jh-org-resources*")
-	(read-only-mode 1)
-	(org-mode)
-	(let ((inhibit-read-only t))
-	  (delete-region (point-min) (point-max))
-	  (insert (concat "#+NAME: " headline "\n" "#+BEGIN_LINKS" "\n"))
-	  (mapc
-	   (lambda (raw-link)
-	     (when raw-link
-	       (insert raw-link)))
-	   links)
-	  (insert "#+END_LINKS\n\n"))
-	(pop-to-buffer "*jh-org-resources*"))))
-  (defun org-gh-open (str)
-    (let* ((split (org-gh-split-string str))
-           (repo (first split))
-           (issue (second split)))
-      (if issue
-	  (browse-url (concat "https://github.com/" repo "/issues/" issue))
-	(browse-url (concat "https://github.com/" repo)))))
-  (defun org-gh-split-string (str)
-    (let* ((strlist (split-string str "#"))
-	   (repo (first strlist))
-           (issue (second strlist)))
-      (list repo issue)))
-  (defun make-orgcapture-frame ()
-    "Create a new frame and run org-capture."
-    (interactive)
-    (make-frame '((name . "*org-capture-note*") (width . 80) (height . 16)
-                  (top . 400) (left . 300)
-                  (font . "-apple-Monaco-medium-normal-normal-*-13-*-*-*-m-0-iso10646-1")
-                  ))
-    (select-frame-by-name "*org-capture-note*")
-    (org-capture nil "n")
-    (delete-other-windows))
-  (defun close-orgcapture-frame ()
-    (interactive)
-    (ignore-errors
-      (select-frame-by-name "*org-capture-note*")
-      (delete-frame)))1
-  (defun insert-gh-link-at-point (link)
-    (interactive "Github Link: ")
-    (save-match-data
-      (let ((matches (make-hash-table)))
-	(string-match "https?://github\.com/\\([A-Za-z]+/[A-Za-z]+\\)/[A-Za-z]+/\\([0-9]+\\)" link)
-	(puthash 'repo (match-string 1 link) matches)
-	(puthash 'id (match-string 2 link) matches)
-	(let ((shorthand (concat (gethash 'repo matches) "#" (gethash 'id matches))))
-	  (insert (concat "[[gh:" shorthand "][" shorthand  "]]"))))))
-  (defun org-linked-refs ()
-    (interactive)
-    (let* ((id (org-entry-get (point) "ID"))
-           (query (cond (id `(link :target ,(concat "id:" id)))
-			(t (error "Entry has no ID property")))))
-      (org-sidebar-ql (org-ql-search-directories-files)
-	query
-	:super-groups '((:auto-property "CATEGORY"));;'((:auto-property "agenda-group"))
-	:title (concat " " (org-get-heading t t t t) " references"))))
-  (defun org-unlinked-refs ()
-    (interactive)
-    (let* ((components (org-heading-components))
-	   (h (nth 4 components))
-	   (matches (org-ql-select (org-agenda-files) h))
-	   (cands (make-hash-table :test 'equal)))
-      (mapcar
-       (lambda (x)
-	 (puthash (org-element-property :raw-value x) x cands))
-       matches)
-      (ivy-read "Unlinked references:"
-	        cands
-		:predicate (lambda (x)
-			     (not (eq x )))
-		:action (lambda (x)
-			  (let* ((element (gethash x cands))
-				 (char-loc (org-element-property :begin element)))
-			    (with-ivy-window
-			      (goto-char char-loc))))
-		:require-match t)
-      ))
-
-  (let* ((variable-tuple
-          (cond ((x-list-fonts "Input")  '(:font "Input"))
-  		          ((x-family-fonts "Monospace")    '(:font "Monospace"))
-  		          (nil (warn "Cannot find a Monospace Font."))))
-  	     (headline-text
-  	      (cond ((x-list-fonts "SF Pro Display") '(:family "SF Pro Display"))
-  		          ((x-family-fonts "Sans Serif") '(:family "Sans Serif"))
-  		          (nil (warn "Cannot find a Sans Serif Font."))))
-  	     (base-font-color     (face-foreground 'default nil 'default))
-  	     (headline           `(:inherit default :weight normal :foreground ,base-font-color :height 140))
-  	     (body               `(:inherit default :weight normal :foreground ,base-font-color :height 140))
-  	     (link               `(:inherit default :weight normal :underline t :style line :height 140 :foreground "DeepSkyBlue1"))
-	     )
-;    (buffer-face-set `((t ,@body ,@variable-tuple)))
-    (custom-theme-set-faces
-     'user
-     `(org-verbatim ((t (,@body :font "Input" :foreground "red"))))
-     `(org-block   ((t (:slant italic :height 1.0))))
-     `(org-link    ((t (,@link :inherit default))))
-     `(org-todo    ((t (,@variable-tuple :box nil :height 1.0 :background nil))))
-     `(org-date    ((t (,@link ,@variable-tuple :foreground "yellow"))))
-     `(org-default ((t (,@body ,@variable-tuple))))
-     `(org-level-8 ((t (,@body ,@variable-tuple))))
-     `(org-level-7 ((t (,@body ,@variable-tuple))))
-     `(org-level-6 ((t (,@body ,@variable-tuple))))
-     `(org-level-5 ((t (,@body ,@variable-tuple))))
-     `(org-level-4 ((t (,@headline ,@variable-tuple))))
-     `(org-level-3 ((t (,@headline ,@variable-tuple))))
-     `(org-level-2 ((t (,@headline ,@variable-tuple))))
-     `(org-level-1 ((t (,@headline ,@variable-tuple))))
-     `(org-document-title ((t (,@headline ,@variable-tuple :underline nil))))))
-  :hook
-  ((org-mode . visual-line-mode)
-   (org-mode . electric-pair-mode)
-   (org-mode . buffer-face-mode)
-   (org-mode . visual-fill-column-mode)
-   (org-capture-after-finalize . close-orgcapture-frame)
-   (org-capture-prepare-finalize . org-id-get-create))
-  :config
-  (setq org-plantuml-jar-path (expand-file-name "~/bin/plantuml.jar"))
-  (add-to-list 'org-src-lang-modes '("plantuml" . plantuml))
-  (org-babel-do-load-languages 'org-babel-load-languages '((plantuml . t)
-                                                           (dot . t)))
-
-  (setq org-directory "/Users/jahfer/iCloud/Org/")
-  (add-to-list 'auto-mode-alist '("\\.org_archive\\'" . org-mode))
-  (font-lock-add-keywords 'org-mode
-                        '(("^ *\\([-]\\) "
-                           (0 (prog1 () (compose-region (match-beginning 1) (match-end 1) "•"))))))
-  (setq-default
-   visual-fill-column-center-text t
-   visual-fill-column-fringes-outside-margins t
-   visual-fill-column-width 100
-   org-log-done t
-   org-support-shift-select t
-   org-use-speed-commands t
-   org-agenda-compact-blocks nil
-   org-display-custom-times t
-   org-time-stamp-custom-formats '("<%Y/%m/%d %a>" . "<%Y/%m/%d %a %_l:%M%#p>")
-   org-id-link-to-org-use-id 'create-if-interactive-and-no-custom-id
-   org-id-locations-file "~/.emacs.d/.org-id-locations"
-   org-id-track-globally t
-   org-adapt-indentation t
-   org-image-actual-width 700
-   org-hide-emphasis-markers t
-   org-startup-with-inline-images nil
-   org-outline-path-complete-in-steps nil
-   org-refile-allow-creating-parent-nodes 'confirm
-   org-refile-use-outline-path 'file
-   org-priority-faces '((?A . (:foreground "red"))
-			(?B . (:foreground "#c195dc"))
-			(?C . (:foreground "grey")))
-   org-todo-keyword-faces '(("CANCELED" . (:foreground "red" :weight bold))
-			    ("WAITING" . (:foreground "orange" :weight bold)))
-   org-agenda-block-separator nil
-   org-global-properties '((Effort_ALL . "5min 10min 30min 1h 2h 1d 1w"))
-   org-columns-default-format "#+COLUMNS: %4PRIORITY(Rank) %60ITEM(Task) %TODO(State) %4Effort(Est.){:}"
-   org-agenda-hide-tags-regexp (regexp-opt '("work" "home" "note" "unfiled"))
-   org-agenda-files (list
-		     (concat org-directory "tasks.org")
-		     (concat org-directory "tasks.org_archive")
-		     (concat org-directory "inbox.org")
-		     (concat org-directory "notes.org"))
-   org-default-notes-file (concat org-directory "inbox.org")
-   org-refile-targets '((("/Users/jahfer/iCloud/Org/tasks.org") . (:maxlevel . 3))
-			(("/Users/jahfer/iCloud/Org/notes.org") . (:maxlevel . 4)))
-   org-capture-templates '(("n" "Note" entry (file+olp+datetree "/Users/jahfer/iCloud/Org/notes.org" "Daily Notes")
-                            "* %?\n")
-                           ("t" "Todo" entry (file+headline "/Users/jahfer/iCloud/Org/inbox.org" "Inbox Tasks")
-                            "* TODO %?\n"))
-   org-agenda-custom-commands  '(("q" "Important tasks"
-				  ((todo "STARTED"
-					 ((org-agenda-overriding-header " Where you left off")))
-				   (tags "work/DUMMY"
-					 ((org-agenda-overriding-header " ")))
-				   (tags-todo "-TODO=\"STARTED\"+PRIORITY=\"A\""
-					      ((org-agenda-overriding-header " Maybe something new"))))
-				  ((org-agenda-prefix-format '((agenda  . " %i %-15c%?-12t% s") ;; file name + org-agenda-entry-type
-							       (timeline  . "  % s")
-							       (todo  . " %i %-19c% s%6 e")
-							       (tags . " %i %-19c% s%6 e")
-							       (search . " %i %-12:c")))))
-				 ("w" "Work list"
-				  ;; Block filter
-                                  ((tags "unfiled/TODO"
-					 ((org-agenda-overriding-header " Unfiled")))
-				   (tags "work/DUMMY"
-					 ((org-agenda-overriding-header " ")))
-				   (todo "STARTED|REVIEWED"
-					 ((org-agenda-overriding-header " In Progress")))
-				   (tags "work/DUMMY"
-					 ((org-agenda-overriding-header " ")))
-				   (tags-todo "-unfiled-PRIORITY=\"C\"+TODO=\"TODO\""
-					      ((org-agenda-overriding-header " Next")
-					       (org-agenda-sorting-strategy '((tags priority-down effort-up category-keep)))))
-				   (tags "work/DUMMY"
-					 ((org-agenda-overriding-header " ")))
-				   (agenda "" ((org-agenda-skip-deadline-if-done t)
-					       (org-agenda-skip-scheduled-if-done t)))
-				   (tags "work/DUMMY"
-					 ((org-agenda-overriding-header " ")))
-				   (todo "WAITING"
-					 ((org-agenda-overriding-header " Stalled")))
-				   (tags "work/DUMMY"
-					 ((org-agenda-overriding-header " ")))
-				   (tags "PRIORITY=\"C\"+TODO=\"TODO\""
-                                         ((org-agenda-overriding-header " Someday")
-					  (org-todo-keyword-faces '(("TODO" . (:foreground "#999")))))))
-				  ;; Settings
-				  ((org-agenda-prefix-format '((agenda  . " %i %-15c%?-12t% s") ;; file name + org-agenda-entry-type
-							       (timeline  . "  % s")
-							       (todo  . " %i %-19c% s%6 e")
-							       (tags . " %i %-19c% s%6 e")
-							       (search . " %i %-12:c"))))
-				  ("/Users/jahfer/iCloud/Org/public/agenda.html"))
-				 ("h" "Home list"
-				  ((tags "home/TODO"
-					 ((org-agenda-overriding-header "Todo:")))))))
-  (org-add-link-type "gh" 'org-gh-open))
-
 
 ;; ERC
 
@@ -898,10 +642,6 @@ PACKAGE is installed and the current version is deleted."
 (global-set-key (kbd "C-c l") 'org-store-link)
 (global-set-key (kbd "C-c a") 'org-agenda)
 (global-set-key (kbd "C-c c") 'org-capture)
-(global-set-key (kbd "C-c o")
-                (lambda () (interactive) (find-file (concat org-directory "tasks.org"))))
-(global-set-key (kbd "C-c i")
-                (lambda () (interactive) (find-file (concat org-directory "inbox.org"))))
 
 ;; helm
 ;; (global-set-key (kbd "C-c h") 'helm-command-prefix)
@@ -980,4 +720,4 @@ Version 2017-09-01"
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
  '(package-selected-packages
-   '(key-chord company lsp-ui flycheck-rust flycheck cargo toml-mode elpher projectile-ripgrep ripgrep hydra magit exec-path-from-shell graphviz-dot-mode zetteldeft deft plantuml-mode polymode visual-fill-column uncrustify-mode ivy-rich seq paredit multiple-cursors move-text monokai-theme ido-vertical-mode flx-ido use-package auto-complete org-sidebar ruby-end counsel swiper ivy yasnippet helm-fuzzy-find lsp-mode rust-mode doom-themes org cl-lib undo-tree tuareg tree-mode sublime-themes spaceline-all-the-icons smex shadowenv projectile-rails org-sticky-header htmlize helm-projectile helm-mode-manager color-theme-solarized)))
+   '(key-chord company lsp-ui flycheck-rust flycheck cargo toml-mode elpher projectile-ripgrep ripgrep hydra magit exec-path-from-shell graphviz-dot-mode zetteldeft deft plantuml-mode polymode visual-fill-column uncrustify-mode ivy-rich seq paredit multiple-cursors move-text monokai-theme ido-vertical-mode flx-ido use-package auto-complete org-sidebar ruby-end counsel swiper ivy yasnippet helm-fuzzy-find lsp-mode rust-mode doom-themes org cl-lib undo-tree tuareg tree-mode sublime-themes spaceline-all-the-icons smex projectile-rails org-sticky-header htmlize helm-projectile helm-mode-manager color-theme-solarized)))
