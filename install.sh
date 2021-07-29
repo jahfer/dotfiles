@@ -50,6 +50,11 @@ if ! command -v fzf &> /dev/null; then
   sudo apt-get install fzf
 fi
 
+# Install bat
+if ! command -v bat &> /dev/null; then
+  sudo apt-get install bat
+fi
+
 # Install ripgrep
 if ! command -v rg &> /dev/null; then
   sudo apt-get install ripgrep
