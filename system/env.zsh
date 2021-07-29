@@ -1,1 +1,2 @@
 PATH=$HOME/bin:$PATH
+EDITOR=emacs

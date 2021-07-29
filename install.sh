@@ -44,3 +44,13 @@ if ! command -v nnn &> /dev/null; then
   cd ./nnn-${NNN_VERSION}
   sudo make strip install
 fi
+
+# Install fzf
+if ! command -v fzf &> /dev/null; then
+  sudo apt-get install fzf
+fi
+
+# Install ripgrep
+if ! command -v rg &> /dev/null; then
+  sudo apt-get install ripgrep
+fi

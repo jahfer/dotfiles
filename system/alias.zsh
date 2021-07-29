@@ -8,3 +8,6 @@ alias rt="bundle exec ruby -Itest"
 # tmux
 alias tc="tmux -CC"
 alias ta="tmux -CC attach"
+
+# search
+alias f="rg --files | fzf --preview 'cat {}'"
