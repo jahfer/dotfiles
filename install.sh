@@ -52,7 +52,7 @@ fi
 
 # Install bat
 if ! command -v bat &> /dev/null; then
-  sudo apt-get install bat
+  sudo apt-get install -o Dpkg::Options::="--force-overwrite" bat
 fi
 
 # Install ripgrep
