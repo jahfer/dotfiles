@@ -63,8 +63,8 @@ fi
 # Install zprezto
 if [ ! -d "${ZDOTDIR:-HOME}/.zprezto" ]; then
   git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto" || panic "Failed to download zprezto"
-  setopt EXTENDED_GLOB
-  for rcfile in "${ZDOTDIR:-$HOME}"/.zprezto/runcoms/^README.md(.N); do
-    ln -s "$rcfile" "${ZDOTDIR:-$HOME}/.${rcfile:t}"
+  shopt -s extglob
+  for rcfile in "${ZDOTDIR:-$HOME}"/.zprezto/runcoms/^README.md; do
+    [ -f rcfile ] && ln -s "$rcfile" "${ZDOTDIR:-$HOME}/.${rcfile:t}"
   done
 fi
