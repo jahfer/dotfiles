@@ -10,4 +10,4 @@ alias tc="tmux -CC"
 alias ta="tmux -CC attach"
 
 # search
-alias f="rg --files | fzf --preview 'batcat --color=always --style=numbers --line-range=:500 {}'"
+alias f="fzf --preview 'batcat --color=always --style=numbers --line-range=:500 {}'"

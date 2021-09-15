@@ -9,6 +9,7 @@ DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # packages to downlaod
 TIG_VERSION="2.5.3"
 NNN_VERSION="3.5"
+ZPREZTO_VERSION="166cbe2fca25319db2551f0cc74a86c93259017d"
 
 # Create executable folder
 mkdir -p $HOME/bin
@@ -58,4 +59,13 @@ fi
 # Install ripgrep
 if ! command -v rg &> /dev/null; then
   sudo apt-get install ripgrep
+fi
+
+# Install zprezto
+if [ ! -d "${ZDOTDIR:-HOME}/.zprezto" ]; then
+  git clone --recursive https://github.com/sorin-ionescu/prezto.git -b $ZPREZTO_VERSION "${ZDOTDIR:-$HOME}/.zprezto" || panic "Failed to download zprezto"
+  setopt EXTENDED_GLOB
+  for rcfile in "${ZDOTDIR:-$HOME}"/.zprezto/runcoms/^README.md(.N); do
+    ln -s "$rcfile" "${ZDOTDIR:-$HOME}/.${rcfile:t}"
+  done
 fi

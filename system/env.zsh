@@ -1,2 +1,3 @@
 PATH=$HOME/bin:$PATH
 EDITOR=emacs
+FZF_DEFAULT_COMMAND='rg --files'
