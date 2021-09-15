@@ -16,12 +16,7 @@ mkdir -p $HOME/bin
 # Install zsh config
 if [ ! -d "${ZDOTDIR:-HOME}/.zprezto" ]; then
   git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto" || panic "Failed to download zprezto"
-  shopt -s extglob
-  for rcfile in "${ZDOTDIR:-$HOME}"/.zprezto/runcoms/^README.md; do
-    [ -f $rcfile ] && ln -sf "$rcfile" "${ZDOTDIR:-$HOME}/.${rcfile:t}" || panic "Failed to symlink ${rcfile:t} for zprezto"
-  done
 fi
-
 ln -sf ${DOTFILES}/runcom/zshrc ${HOME}/.zshrc || panic "Failed to symlink .zshrc"
 
 # Config Emacs
