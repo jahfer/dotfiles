@@ -54,7 +54,7 @@ if ! command -v fzf &> /dev/null; then
 fi
 
 # Install bat
-if ! command -v bat &> /dev/null; then
+if ! command -v batcat &> /dev/null; then
   sudo apt-get install -o Dpkg::Options::="--force-overwrite" bat
 fi
 
