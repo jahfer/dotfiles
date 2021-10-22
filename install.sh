@@ -14,7 +14,7 @@ NNN_VERSION="3.5"
 mkdir -p $HOME/bin
 
 # Install zsh config
-if [ ! -d "${ZDOTDIR:-HOME}/.zprezto" ]; then
+if [ ! -d "${ZDOTDIR:-$HOME}/.zprezto" ]; then
   git clone --recursive https://github.com/sorin-ionescu/prezto.git "${ZDOTDIR:-$HOME}/.zprezto" || panic "Failed to download zprezto"
 fi
 ln -sf ${DOTFILES}/runcom/zshrc ${HOME}/.zshrc || panic "Failed to symlink .zshrc"
