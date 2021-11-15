@@ -11,3 +11,4 @@ alias ta="tmux -CC attach"
 
 # search
 alias f="fzf --preview 'batcat --color=always --style=numbers --line-range=:500 {}'"
+alias ls='nnn -de'
