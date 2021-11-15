@@ -53,6 +53,12 @@ if ! command -v fzf &> /dev/null; then
   sudo apt-get install fzf
 fi
 
+# Install fd
+if ! command -v fdfind &> /dev/null; then
+  sudo apt-get install fd-find
+  sudo ln -s $(which fdfind) /usr/local/bin/fd || panic "Failed to symlind fdfind"
+fi
+
 # Install bat
 if ! command -v batcat &> /dev/null; then
   sudo apt-get install -o Dpkg::Options::="--force-overwrite" bat
