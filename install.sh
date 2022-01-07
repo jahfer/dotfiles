@@ -27,8 +27,8 @@ mkdir -p $SPIN_EMACS_PATH || panic "Failed to mkdir -p ${SPIN_EMACS_PATH}"
 
 # Install Tig
 if ! command -v tig &> /dev/null; then
-  [ dpkg -s libncurses5-dev ] || sudo apt-get install -y libncurses5-dev
-  [ dpkg -s libncursesw5-dev ] || sudo apt-get install -y libncursesw5-dev
+  [ dpkg -s libncurses5-dev ] || sudo apt-get install -o DPkg::Lock::Timeout=600 -y libncurses5-dev 
+  [ dpkg -s libncursesw5-dev ] || sudo apt-get install -o DPkg::Lock::Timeout=600 -y libncursesw5-dev
 
   wget -O - "https://github.com/jonas/tig/releases/download/tig-${TIG_VERSION}/tig-${TIG_VERSION}.tar.gz" | tar -zxf - || panic "Failed to download tig"
 
@@ -42,7 +42,7 @@ fi
 
 # Install nnn
 if ! command -v nnn &> /dev/null; then
-  sudo apt-get install -y pkg-config libncursesw5-dev libreadline-dev || panic "Failed to install dependencies for nnn"
+  sudo apt-get install -o DPkg::Lock::Timeout=600 -y pkg-config libncursesw5-dev libreadline-dev || panic "Failed to install dependencies for nnn"
   wget -O - "https://github.com/jarun/nnn/releases/download/v${NNN_VERSION}/nnn-v${NNN_VERSION}.tar.gz" | tar -zxf - || panic "Failed to download nnn"
   cd ./nnn-${NNN_VERSION}
   sudo make strip install || panic "Failed to install nnn"
@@ -52,23 +52,23 @@ fi
 
 # Install fzf
 if ! command -v fzf &> /dev/null; then
-  sudo apt-get install fzf
+  sudo apt-get install -o DPkg::Lock::Timeout=600 fzf
 fi
 
 # Install fd
 if ! command -v fdfind &> /dev/null; then
-  sudo apt-get install fd-find
+  sudo apt-get install -o DPkg::Lock::Timeout=600 fd-find
   sudo ln -s $(which fdfind) "${HOME}/bin/fd" || panic "Failed to symlind fdfind"
 fi
 
 # Install bat
 if ! command -v batcat &> /dev/null; then
-  sudo apt-get install -o Dpkg::Options::="--force-overwrite" bat
+  sudo apt-get install -o DPkg::Lock::Timeout=600 -o Dpkg::Options::="--force-overwrite" bat
 fi
 
 # Install ripgrep
 if ! command -v rg &> /dev/null; then
-  sudo apt-get install ripgrep
+  sudo apt-get install -o DPkg::Lock::Timeout=600 ripgrep
 fi
 
 # tmux
