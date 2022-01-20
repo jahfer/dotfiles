@@ -1,6 +1,6 @@
 PATH=$HOME/bin:${ZDOTDIR:-$HOME}/.zprofile:$PATH
 EDITOR=emacs
-VISUAL=code
+VISUAL=vim
 
 export FZF_DEFAULT_COMMAND='fd --type file --color=always'
 export FZF_DEFAULT_OPTS="--ansi"
