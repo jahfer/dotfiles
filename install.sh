@@ -74,10 +74,9 @@ fi
 
 # Install delta
 if ! command -v delta &> /dev/null; then
-  wget -O - "https://github.com/dandavison/delta/releases/download/${DELTA_VERSION}/git-delta_${DELTA_VERSION}_amd64.deb" || panic "Failed to download git-delta"
-  dpkg -i git-delta_${DELTA_VERSION}_amd64.deb
+  wget "https://github.com/dandavison/delta/releases/download/${DELTA_VERSION}/git-delta_${DELTA_VERSION}_amd64.deb" || panic "Failed to download git-delta"
+  sudo dpkg -i git-delta_${DELTA_VERSION}_amd64.deb
 fi
-end
 
 # Config Files
 
