@@ -9,6 +9,7 @@ DOTFILES="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # packages to downlaod
 TIG_VERSION="2.5.3"
 NNN_VERSION="4.3"
+DELTA_VERSION="0.12.1"
 
 # Create executable folder
 mkdir -p $HOME/bin
@@ -27,7 +28,7 @@ mkdir -p $SPIN_EMACS_PATH || panic "Failed to mkdir -p ${SPIN_EMACS_PATH}"
 
 # Install Tig
 if ! command -v tig &> /dev/null; then
-  [ dpkg -s libncurses5-dev ] || sudo apt-get -o DPkg::Lock::Timeout=60 install -y libncurses5-dev 
+  [ dpkg -s libncurses5-dev ] || sudo apt-get -o DPkg::Lock::Timeout=60 install -y libncurses5-dev
   [ dpkg -s libncursesw5-dev ] || sudo apt-get -o DPkg::Lock::Timeout=60 install -y libncursesw5-dev
 
   wget -O - "https://github.com/jonas/tig/releases/download/tig-${TIG_VERSION}/tig-${TIG_VERSION}.tar.gz" | tar -zxf - || panic "Failed to download tig"
@@ -71,8 +72,17 @@ if ! command -v rg &> /dev/null; then
   sudo apt-get -o DPkg::Lock::Timeout=60 install ripgrep
 fi
 
+# Install delta
+if ! command -v delta &> /dev/null; then
+  wget -O - "https://github.com/dandavison/delta/releases/download/${DELTA_VERSION}/git-delta_${DELTA_VERSION}_amd64.deb" || panic "Failed to download git-delta"
+  dpkg -i git-delta_${DELTA_VERSION}_amd64.deb
+fi
+end
+
+# Config Files
+
 # tmux
 [ -L "$HOME/.tmux.conf" ] || ln -s ${DOTFILES}/tmux/tmux.conf ${HOME}/.tmux.conf || panic "Failed to symlink .tmux.conf"
 
 # git
-[ -L "$HOME/.gitconfig" ] || [ -f "$HOME/.gitconfig" ] || ln -s ${DOTFILES}/git/gitconfig ${HOME}/.gitconfig || panic "Failed to symlink .gitconfig"
+rm ${HOME}/.gitconfig && ln -s ${DOTFILES}/git/gitconfig ${HOME}/.gitconfig || panic "Failed to symlink .gitconfig"
