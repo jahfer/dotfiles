@@ -84,4 +84,4 @@ fi
 [ -L "$HOME/.tmux.conf" ] || ln -s ${DOTFILES}/tmux/tmux.conf ${HOME}/.tmux.conf || panic "Failed to symlink .tmux.conf"
 
 # git
-rm ${HOME}/.gitconfig && ln -s ${DOTFILES}/git/gitconfig ${HOME}/.gitconfig || panic "Failed to symlink .gitconfig"
+rm -f ${HOME}/.gitconfig && ln -s ${DOTFILES}/git/gitconfig ${HOME}/.gitconfig || panic "Failed to symlink .gitconfig"
