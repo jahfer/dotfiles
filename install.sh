@@ -53,7 +53,7 @@ fi
 
 # Install fzf
 if ! command -v fzf &> /dev/null; then
-  sudo apt-get -o DPkg::Lock::Timeout=60 install fzf
+  sudo apt-get -o DPkg::Lock::Timeout=60 install -y fzf
 fi
 
 # Install fd
@@ -64,7 +64,7 @@ fi
 
 # Install bat
 if ! command -v batcat &> /dev/null; then
-  sudo apt-get -o DPkg::Lock::Timeout=60 -o Dpkg::Options::="--force-overwrite" install bat
+  sudo apt-get -o DPkg::Lock::Timeout=60 -o Dpkg::Options::="--force-overwrite" install -y bat
 fi
 
 # Install ripgrep
