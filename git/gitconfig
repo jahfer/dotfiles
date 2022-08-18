@@ -1,6 +1,6 @@
 [user]
-        name = Jahfer Husain
-        email = jahfer.husain@shopify.com
+    name = Jahfer Husain
+    email = jahfer.husain@shopify.com
 
 [core]
     pager = delta
@@ -13,6 +13,10 @@
 
 [merge]
     conflictstyle = diff3
+    tool = code
+
+[mergetool "code"]
+    cmd = code --wait --merge $REMOTE $LOCAL $BASE $MERGED
 
 [diff]
     colorMoved = default
