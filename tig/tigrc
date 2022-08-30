@@ -1,4 +1,3 @@
-
 # Use Git's default (reverse chronological) order, never automatically
 # use topo-order for the commit graph
 set commit-order = default
