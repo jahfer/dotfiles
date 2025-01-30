@@ -1,691 +1,114 @@
-;;    Managing extensions for Emacs is simplified using =package= which
-;;    is built in to Emacs 24 and newer. To load downloaded packages we
-;;    need to initialize =package=.
-(require 'package)
-(setq package-enable-at-startup nil)
-(package-initialize)
+(use-package emacs
+  :bind
+  (("C-x C-r" . recentf-open-files)
+   ("C-c e" . mac-opt-chars-mode))
 
-(server-start t t)
+  :init
+  (defun mac-toggle-ns-alt-modifier ()
+    (if (not mac-opt-chars-mode)
+        (setq ns-alternate-modifier 'meta)
+      (setq ns-alternate-modifier nil)))
+  
+  (define-minor-mode mac-opt-chars-mode
+    "Type characters with option as in other Mac applications."
+    :global t
+    :lighter " é"
+    (mac-toggle-ns-alt-modifier))
+  
+  :hook
+  (text-mode . flyspell-mode)
+  (prog-mode . flyspell-prog-mode)
+  (org-mode . flyspell-mode)
+  (org-mode . (lambda () (display-line-numbers-mode 0)))
+  (org-mode . (lambda () (face-remap-add-relative 'default
+						  :family "iA Writer Duo S"
+						  :height 150)))
+  
+  :config
+  (require 'modus-themes)
+  (require 'ef-themes)
+  
+  (setq debug-on-error t)
 
-(setq initial-frame-alist '((font . "-*-Input-normal-normal-semicondensed-*-14-*-*-*-m-0-iso10646-1")))
-(setq default-frame-alist '((font . "-*-Input-normal-normal-semicondensed-*-14-*-*-*-m-0-iso10646-1")))
+  (setq modus-themes-italic-constructs t
+	      modus-themes-bold-constructs nil)
 
-;;-*-Input-normal-normal-semicondensed-*-14-*-*-*-m-0-iso10646-1
+  (mapc #'disable-theme custom-enabled-themes)
+  ;; Light themes
+  ;(load-theme 'ef-cyprus :no-confirm)
+  (set-frame-parameter nil 'ns-appearance 'light)
+  ;; Dark themes
+  (load-theme 'ef-maris-dark :no-confirm)
+  ;(load-theme 'modus-vivendi-tinted :no-confirm)
+  (set-frame-parameter nil 'ns-appearance 'dark)
 
-;; set tab sanity
-(setq c-basic-indent 2)
-(setq tab-width 2)
-(setq coffee-tab-width 2)
-(setq indent-tabs-mode nil)
-(setq inhibit-startup-screen t
-      initial-buffer-choice nil)
+  (set-frame-parameter nil 'ns-transparent-titlebar t)
+  
+  (menu-bar-mode -1)
+  (scroll-bar-mode -1)
+  (tool-bar-mode -1)
+  
+  (electric-pair-mode t)
+  (delete-selection-mode t)
+  (recentf-mode t)
 
-(defconst current-dir (file-name-directory (or load-file-name buffer-file-name)))
+  (setq ns-alternate-modifier 'meta)
 
-(setq initial-scratch-message
-      (with-temp-buffer
-	(insert-file-contents (expand-file-name "scratch-template" current-dir))
-	(buffer-string)))
+  (setq ispell-program-name "aspell")
+  (setq ispell-list-command "list")
+  
+  (setq-default truncate-lines t
+                left-margin-width 0
+                right-margin-width 2)
 
-(setq initial-major-mode 'ruby-mode)
+  (setq c-basic-indent 2)
+  (setq tab-width 2)
+  (setq indent-tabs-mode nil)
+  (setq inhibit-startup-screen t
+        initial-buffer-choice nil)
 
-;; Packages can be fetched from different mirrors, [[http://melpa.milkbox.net/#/][melpa]] is the largest
-;;    archive and is well maintained.
+  (defconst current-dir (file-name-directory (or load-file-name buffer-file-name)))
+  
+  (setq initial-scratch-message
+        (with-temp-buffer
+	  (insert-file-contents (expand-file-name "scratch-template" current-dir))
+	  (buffer-string)))
 
-(setq package-archives
-      '(("gnu" . "http://elpa.gnu.org/packages/")
-        ("org" . "http://orgmode.org/elpa/")
-        ("MELPA" . "http://melpa.org/packages/")))
+  (set-frame-font "Berkeley Mono 14" nil t)
 
-;; We can define a predicate that tells us whether or not the newest version
-;;    of a package is installed.
-
-(defun newest-package-installed-p (package)
-  "Return true if the newest available PACKAGE is installed."
-  (message "Installing package: %s" package)
-  (when (package-installed-p package)
-    (let* ((get-desc (if (version< emacs-version "24.4") 'cdr 'cadr))
-	   (builtin-version (alist-get package package--builtin-versions))
-	   (local-pkg-desc  (assq package package-alist))
-	   (newest-pkg-desc (assq package package-archive-contents)))
-      (cond ((and local-pkg-desc newest-pkg-desc)
-	     (version-list-= (package-desc-version
-			      (funcall get-desc local-pkg-desc))
-			     (package-desc-version
-			      (funcall get-desc newest-pkg-desc))))
-	    ((and builtin-version newest-pkg-desc)
-	     (version-list-= builtin-version
-			     (package-desc-version
-			      (funcall get-desc newest-pkg-desc))))))))
-
-;; Let's write a function to install a package if it is not installed or
-;;    upgrades it if a new version has been released. Here our predicate comes
-;;    in handy.
-
-(defun upgrade-or-install-package (package)
-  "Unless the newest available version of PACKAGE is installed
-PACKAGE is installed and the current version is deleted."
-  (unless (newest-package-installed-p package)
-    (let ((pkg-desc (assq package package-alist)))
-      (when pkg-desc
-	(package-delete (cadr pkg-desc)))
-      (and (assq package package-archive-contents)
-           (package-install package)))))
-
-;; Also, we will need a function to find all dependencies from a given package.
-(defun dependencies (package)
-  "Returns a list of dependencies from a given PACKAGE."
-  (let* ((pkg-desc (assq package package-alist))
-;	 (message "Updating dependencies for %s" (symbol-name package))
-         (reqs (and pkg-desc (package-desc-reqs (cadr pkg-desc)))))
-    (mapcar 'car reqs)))
-
-;; The =package-refresh-contents= function downloads archive descriptions,
-;;    this is a major bottleneck in this configuration. To avoid this we can
-;;    try to only check for updates once every day or so. Here are three
-;;    variables. The first specifies how often we should check for update
-;;    shown value does not take effect until you set or save it.
-;;    her one should update during the initialization. The
-;;    third is a path to a file where a time-stamp is stored in order to check
-;;    when packages were updated last.
-
-(defvar days-between-updates 7)
-(defvar do-package-update-on-init t)
-(defvar package-last-update-file
-  (expand-file-name (concat user-emacs-directory ".package-last-update")))
-
-;; The tricky part is figuring out when packages were last updated. Here is
-;;    a hacky way of doing it, using [[http://www.gnu.org/software/emacs/manual/html_node/emacs/Time-Stamps.html][time-stamps]]. By adding a time-stamp to the
-;;    a file, we can determine whether or not to do an update. After that we
-;;    must run the =time-stamp=-function to update the time-stamp.
-
-(require 'time-stamp)
-;; Open the package-last-update-file
-(with-temp-file package-last-update-file
-  (if (file-exists-p package-last-update-file)
-      (progn
-        ;; Insert it's original content's.
-        (insert-file-contents package-last-update-file)
-        (let ((start (re-search-forward time-stamp-start nil t))
-              (end (re-search-forward time-stamp-end nil t)))
-          (when (and start end)
-            ;; Assuming we have found a time-stamp, we check determine if it's
-            ;; time to update.
-            (setq do-package-update-on-init
-                  (<= days-between-updates
-                      (days-between
-                       (current-time-string)
-                       (buffer-substring-no-properties start end))))
-            ;; Remember to update the time-stamp.
-            (when do-package-update-on-init
-              (time-stamp)))))
-    ;; If no such file exists it is created with a time-stamp.
-    (insert "Time-stamp: <>")
-    (time-stamp)))
-
-
-;; Now we can use the function above to make sure packages are installed and
-;;    up to date. Here are some packages I find useful (some of these
-;;    configurations are also dependent on them).
-
-(when (and do-package-update-on-init
-           (y-or-n-p "Update all packages?"))
-  (package-refresh-contents)
-
-  (let* ((packages
-          '(
-	    use-package        ; package configuration
-	    auto-complete      ; auto completion
-;;	    cider              ; clojure integrated development environment and REPL
-;;	    clojure-mode       ; major mode for clojure code
-            flx-ido            ; flx integration for ido
-            ido-vertical-mode  ; Makes ido-mode display vertically.
-            magit             ; control Git from Emacs
-	    monokai-theme     ; A fruity color theme for Emacs.
-            move-text         ; Move current line or region with M-up or M-down
-            multiple-cursors  ; Multiple cursors for Emacs.
-            paredit           ; minor mode for editing parentheses
-            powerline         ; Rewrite of Powerline
-            smex              ; M-x interface with Ido-style fuzzy matching.
-	    projectile-rails  ; projectile support for rails projectsx
-	    sublime-themes    ; Perty themes
-	    color-theme-solarized
-	    key-chord
-	    markdown-mode
-	    org-brain
-	    magit
-	    polymode
-	    htmlize
-	    hydra
-	    avy
-	    deft
-	    graphviz-dot-mode
-	    zetteldeft
-;;	    helm
-;;	    helm-fuzzy-find
-	    ;;	    helm-projectile
-	    ivy
-	    ivy-rich
-	    swiper
-	    counsel
-	    undo-tree
-	    spaceline
-	    spaceline-all-the-icons
-	    org-sticky-header
-	    plantuml-mode
-	    org-ql
-	    ruby-end
-	    lsp-mode
-	    tuareg
-	    doom-themes
-	    org-sidebar
-	    visual-fill-column
-	    toml-mode
-	    rust-mode
-	    cargo
-	    company
-	    flycheck
-	    flycheck-rust
-	    lsp-ui
-	    ))
-         ;; Fetch dependencies from all packages.
-         (reqs (mapcar 'dependencies packages))
-         ;; Append these to the original list, and remove any duplicates.
-         (packages (delete-dups (apply 'append packages reqs))))
-    (dolist (package packages)
-      (upgrade-or-install-package package)))
-
-  ;; This package is only relevant for Mac OS X.
-  (when (memq window-system '(mac ns))
-    (upgrade-or-install-package 'exec-path-from-shell))
-
-  (package-initialize))
-
-(eval-when-compile
-  (require 'use-package))
-
-;; Mac OS X
-
-;;    I run this configuration mostly on Mac OS X, so we need a couple of
-;;    settings to make things work smoothly. In the package section
-;;    =exec-path-from-shell= is included (only if you're running OS X), this is
-;;    to include environment-variables from the shell. It makes useing Emacs
-;;    along with external processes a lot simpler. I also prefer using the
-;;    =Command=-key as the =Meta=-key.
-
-(when (memq window-system '(mac ns))
-  (setq mac-option-modifier 'meta
-        x-select-enable-clipboard t)
-  (run-with-idle-timer 5 nil 'exec-path-from-shell-initialize)
-  (setq ns-use-srgb-colorspace t))
-
-;; Some mac-bindings interfere with Emacs bindings.
-(when (boundp 'mac-pass-command-to-system)
-  (setq mac-pass-command-to-system nil))
-
-(defvar emacs-autosave-directory
-  (concat user-emacs-directory "autosaves/")
-  "This variable dictates where to put auto saves. It is set to a
+  (defvar emacs-autosave-directory
+    (concat user-emacs-directory "autosaves/")
+    "This variable dictates where to put auto saves. It is set to a
   directory called autosaves located wherever your .emacs.d/ is
   located.")
-
-;; Sets all files to be backed up and auto saved in a single directory.
-(setq backup-directory-alist
-      `((".*" . ,emacs-autosave-directory))
-      auto-save-file-name-transforms
-      `((".*" ,emacs-autosave-directory t)))
-
-;; Set =utf-8= as preferred coding system.
-(set-language-environment "UTF-8")
-
-;; Call =auto-complete= default configuration, which enables =auto-complete=
-;;    globally.
-;(eval-after-load 'auto-complete-config '(ac-config-default))
-
-;; Modes
-
-;;    There are some modes that are enabled by default that I don't find
-;;    particularly useful. We create a list of these modes, and disable all of
-;;    these.
-
-(dolist (mode
-         '(tool-bar-mode                ; No toolbars, more room for text.
-           menu-bar-mode                ; No file/etc bar
-           scroll-bar-mode))            ; No scroll bars either.
-  (funcall mode 0))
-
-
-;; Let's apply the same technique for enabling modes that are disabled by
-;;    default.
-
-(dolist (mode
-         '(;abbrev-mode               ; E.g. sopl -> System.out.println.
-           column-number-mode         ; Show column number in mode line.
-           delete-selection-mode      ; Replace selected text.
-           recentf-mode               ; Recently opened files.
-           show-paren-mode            ; Highlight matching parentheses.
-	         ;;desktop-save-mode
-	         electric-pair-mode
-	         multiple-cursors-mode
-	         ;;helm-mode
-           global-undo-tree-mode))    ; Undo as a tree.
-  (funcall mode 1))
-
-;; Set variables for desktop-save to function smoothly
-;;(setq desktop-path '("~/.emacs.d/"))
-;;(setq desktop-dirname user-emacs-directory)
-;;(setq desktop-base-file-name "emacs-desktop")
-; remove desktop after it's been read
-;; (add-hook 'desktop-after-read-hook
-;;     '(lambda ()
-;;        ;; desktop-remove clears desktop-dirname
-;;        (setq desktop-dirname-tmp desktop-dirname)
-;;        (desktop-remove)
-;;        (setq desktop-dirname desktop-dirname-tmp)))
-
-;; This makes =.md=-files open in =markdown-mode=.
-(add-to-list 'auto-mode-alist '("\\.md\\'" . markdown-mode))
-
-;; Visual
-;;    Change the color-theme to =monokai= (downloaded using =package=).
-                                        ;(load-theme 'challenger-deep t)
-(add-to-list 'custom-theme-load-path "~/.emacs.d/themes/")
-;;(load-theme 'doom-Iosvkem t)
-;;(load-theme 'vscode-default-dark t)
-;;(load-theme 'doom-palenight t)
-;;(load-theme 'pastelmac t)
-;;(load-theme 'avk-daylight t)
-
-(custom-theme-set-faces
- 'user
- '(default ((t (:background nil :height 140))))
-; '(mode-line ((t (:family "M+ 2m" :box (:line-width 1 :color "#100f22")))))
- '(mode-line ((t (:family "M+ 2m" :box (:line-width 1 :color "#000000")))))
- '(fixed-pitch ((t (:weight light :family "Input"))))
- '(variable-pitch ((t (:weight light :family "SF Pro Text")))))
-
-(setq-default line-spacing 0.3)
-(set-face-attribute 'default nil :height 140)
-(set-frame-font "Input-14" nil t)
-
-(set-cursor-color "#AAA")
-
-(setq-default cursor-type 'bar)
-(setq-default blink-cursor-mode -1)
-(setq-default truncate-lines t)
-(setq-default left-margin-width 0 right-margin-width 2)
-(setq-default global-visual-line-mode nil)
-(global-display-line-numbers-mode)
-
-(set-window-buffer nil (current-buffer))
-
-;; (use-package spaceline-all-the-icons
-;;   :init (require 'spaceline)
-;;   :config (spaceline-all-the-icons-theme))
-
-;; remove trailing whitespace
-;;(add-hook 'before-save-hook 'delete-trailing-whitespace)
-
-;; always autocomplete
-(use-package auto-complete
-  :config
-  (global-auto-complete-mode t))
-
-;; hook up projectile-rails
-(add-hook 'projectile-mode-hook 'projectile-rails-on)
-
-;; [[https://github.com/milkypostman/powerline][Powerline]] is an extension to customize the mode line. This is modified
-;;    version =powerline-nano-theme=.
-
-(require 'powerline)
-(powerline-nano-theme)
-(add-hook 'desktop-after-read-hook 'powerline-reset)
-
-;; macOS
-(when (memq window-system '(mac ns))
-  (add-to-list 'default-frame-alist '(ns-appearance . dark)) ;; {light, dark}
-  (add-to-list 'default-frame-alist '(ns-transparent-titlebar . t)))
-
-;; Ido
-
-;;    Interactive do (or =ido-mode=) changes the way you switch buffers and
-;;    open files/directories. Instead of writing complete file paths and buffer
-;;    names you can write a part of it and select one from a list of
-;;    possibilities. Using =ido-vertical-mode= changes the way possibilities
-;;    are displayed, and =flx-ido-mode= enables fuzzy matching.
-
-;; (dolist (mode
-;;          '(ido-mode                   ; Interactivly do.
-;;            ido-everywhere             ; Use Ido for all buffer/file reading.
-;;            ;ido-vertical-mode          ; Makes ido-mode display vertically.
-;;            flx-ido-mode))             ; Toggle flx ido mode.
-;;   (funcall mode 1))
-
-
-;; We can set the order of file selections in =ido=. I prioritize source
-;;    files along with =org=- and =tex=-files.
-
-;; (setq ido-file-extensions-order
-;;       '(".el" ".scm" ".lisp" ".java" ".c" ".h" ".org" ".tex"))
-
-;; Sometimes when using =ido-switch-buffer= the =*Messages*= buffer get in
-;;    the way, so we set it to be ignored (it can be accessed using =C-h e=, so
-;;    there is really no need for it in the buffer list).
-
-;; (add-to-list 'ido-ignore-buffers "*Messages*")
-
-;; To make =M-x= behave more like =ido-mode= we can use the =smex=
-;;    package. It needs to be initialized, and we can replace the binding to
-;;    the standard =execute-extended-command= with =smex=.
-
-(smex-initialize)
-(global-set-key (kbd "M-x") 'smex)
-
-
-;; Interactive functions
-;;    <<sec:defuns>>
-
-;;    To search recent files useing =ido-mode= we add this snippet from
-;;    [[http://www.emacswiki.org/emacs/CalendarWeekNumbers][EmacsWiki]].
-
-;; (defun recentf-ido-find-file ()
-;;   "Find a recent file using Ido."
-;;   (interactive)
-;;   (let ((f (ido-completing-read "Choose recent file: " recentf-list nil t)))
-;;     (when f
-;;       (find-file f))))
-
-(defun whack-whitespace (arg)
-  "Delete all white space from point to the next word.  With prefix ARG
-    delete across newlines as well.  The only danger in this is that you
-    don't have to actually be at the end of a word to make it work.  It
-    skips over to the next whitespace and then whacks it all to the next
-    word."
-  (interactive "P")
-  (let ((regexp (if arg "[ \t\n]+" "[ \t]+")))
-    (re-search-forward regexp nil t)
-    (replace-match "" nil nil)))
-
-;; Projectile configuration
-
-;;(projectile-global-mode)
-
-;;(setq projectile-completion-system 'helm)
-;;(helm-projectile-on)
-
-;; (use-package helm
-;;   :init
-;;   (setq helm-display-header-line nil)
-;;   (set-face-attribute 'helm-source-header nil :height 0.1)
-;;   (helm-autoresize-mode 1)
-;;   (setq helm-autoresize-max-height 30)
-;;   (setq helm-split-window-in-side-p t))
-
-;;(use-package helm-fuzzy-find)
-
-;; (setq shell-file-name "/bin/sh")
-
-;(use-package flycheck
-;  :hook (prog-mode . flycheck-mode))
-
-(use-package company
-  :hook (prog-mode . company-mode)
-  :config (setq company-tooltip-align-annotations t)
-          (setq company-minimum-prefix-length 1))
-
-(use-package lsp-mode
-  :commands lsp
-  :config (setq lsp-rust-server 'rust-analyzer))
-
-(use-package lsp-ui)
-
-(use-package toml-mode)
-
-(use-package rust-mode
-  :hook (rust-mode . lsp))
-
-;; Add keybindings for interacting with Cargo
-(use-package cargo
-  :hook (rust-mode . cargo-minor-mode))
-
-(use-package flycheck-rust
-  :config (add-hook 'flycheck-mode-hook #'flycheck-rust-setup))
-
-;; Increase GC threshold
-(setq gc-cons-threshold 20000000)
-
-;; Language Features
-(use-package ruby-end)
-
-(use-package hydra
+  
+  ;; Sets all files to be backed up and auto saved in a single directory.
+  (setq backup-directory-alist
+        `((".*" . ,emacs-autosave-directory))
+        auto-save-file-name-transforms
+        `((".*" ,emacs-autosave-directory t)))
+  
   :init
-  (defhydra hydra-zetteldeft (:columns 3
-                              :color yellow
-                              :exit t)
-    "zetteldeft"
-    ("n" zetteldeft-new-file "New file")
-    ("N" zetteldeft-new-file-and-link "New file with link")
-    ("b" zetteldeft-new-file-and-backlink "New file with backlink")
-    ("f" zetteldeft-find-file "Find file")
-    ("t" zetteldeft-avy-tag-search "Tag search")
-    ("l" zetteldeft-follow-link "Follow link")
-    ("r" zetteldeft-file-rename "Rename file")
-    ("h" zetteldeft-go-home "Go to index")
-    ("g" deft-refresh "Refresh")
-    ("i" zetteldeft-find-file-id-insert "Insert link id")
-    ("I" zetteldeft-find-file-full-title-insert "Insert full link title")
-    ("s" deft "Search")
-    ("q" nil "quit")
-    ("B" zetteldeft-backlink-add "Add backlink"))
-  :bind ("<f2>" . hydra-zetteldeft/body))
+  ;; Add prompt indicator to `completing-read-multiple'.
+  ;; We display [CRM<separator>], e.g., [CRM,] if the separator is a comma.
+  (defun crm-indicator (args)
+    (cons (format "[CRM%s] %s"
+                  (replace-regexp-in-string
+                   "\\`\\[.*?]\\*\\|\\[.*?]\\*\\'" ""
+                   crm-separator)
+                  (car args))
+          (cdr args)))
+  (advice-add #'completing-read-multiple :filter-args #'crm-indicator)
 
-;; Ivy
-(use-package ivy
-  :init
-  (require 'swiper)
-  (require 'counsel)
-  (setq ivy-use-virtual-buffers t)
-  (setq ivy-count-format "(%d/%d) ")
-  (setq ivy-wrap t)
-  (setcdr (assoc 'counsel-M-x ivy-initial-inputs-alist) "")
-  (setq ivy-re-builders-alist
-	'((t . ivy--regex-plus)))
-  :bind (("C-s" . swiper-isearch)
-	 ("M-x" . counsel-M-x)
-	 ("C-x C-f" . counsel-find-file)
-	 ("C-x C-r" . counsel-recentf)
-	 ("M-y" . counsel-yank-pop)
-	 ("C-x b" . ivy-switch-buffer)
-	 ("C-c v" . ivy-push-view)
-	 ("C-c V" . ivy-pop-view)
-	 ("C-c h" . counsel-org-goto)
-	 ("C-c y" . counsel-org-link)
-	 ("C-x t" . counsel-org-tag))
-  :config
-  (ivy-mode 1)
-  (setq projectile-completion-system 'ivy))
-
-(use-package ivy-rich
-  :demand t
-  :after ivy
-  :init
-  (setq ivy-rich-path-style 'abbrev)
-  (setcdr (assq t ivy-format-functions-alist) #'ivy-format-function-line)
-  :config
-  (ivy-rich-mode 1))
-
-;; Magit
-(use-package magit
-  :bind
-  ("C-x g" . magit-status))
-(setq with-editor-emacsclient-executable "/Users/jahfer/.nix-profile/bin/emacsclient")
-
-;; Org Brain
-(use-package org-brain :ensure t
-  :after org
-  :config
-  (bind-key "C-c b" 'org-brain-prefix-map org-mode-map)
-  (setq org-id-track-globally t)
-  (setq org-id-locations-file "~/.emacs.d/.org-id-locations")
-  (add-hook 'before-save-hook #'org-brain-ensure-ids-in-buffer)
-  (setq org-brain-visualize-default-choices 'all)
-  (setq org-brain-title-max-length 12)
-  (setq org-brain-include-file-entries nil
-        org-brain-file-entries-use-title nil))
-
-;; ;; Allows you to edit entries directly from org-brain-visualize
-;; (use-package polymode
-;;   :hook
-;;   ((org-brain-visualize-mode . org-brain-polymode)))
-(default-font-height)
-
-;; ERC
-
-(setq erc-hide-list '("JOIN" "PART" "QUIT" "CHANGE"))
-
-;;(require 'ox-publish)
-(setq org-publish-project-alist
-      '(
-	("org-notes"
-	 :base-directory "~/Dropbox/org/"
-	 :base-extension "org"
-	 :publishing-directory "~/src/org-public/"
-	 :recursive t
-	 :publishing-function org-html-publish-to-html
-	 :headline-levels 2
-	 :auto-preamble t)
-
-	("org-static"
-	 :base-directory "~/Dropbox/org/"
-	 :base-extension "css\\|js"
-	 :publishing-directory "~/src/org-public/"
-	 :recursive t
-	 :publishing-function org-publish-attachment)
-
-	("org" :components ("org-notes" "org-static"))))
-
-;; Reminders
-; http://doc.norang.ca/org-mode.html (17.1)
-; Erase all reminders and rebuilt reminders for today from the agenda
-(defun jh/org-agenda-to-appt ()
-  (interactive)
-  (setq appt-time-msg-list nil)
-  (org-agenda-to-appt))
-; Rebuild the reminders everytime the agenda is displayed
-(add-hook 'org-agenda-finalize-hook 'jh/org-agenda-to-appt 'append)
-; Appointments are set up when Emacs starts
-(jh/org-agenda-to-appt)
-; Activate appointments so we get notifications
-(appt-activate t)
-; If we leave Emacs running overnight - reset the appointments one minute after midnight
-(run-at-time "24:01" nil 'jh/org-agenda-to-appt)
-
-(defun jh/current-file ()
-  (interactive)
-  (message (file-truename deft-directory))
-  (message (buffer-file-name)))
-
-;; Zetteldeft
-(use-package deft
-  :init
-  (defun jh/deft-open-other ()
-    (interactive)
-    (deft-open-file-other-window t))
-  (defun jh/deft-open-preview ()
-    (interactive)
-    (deft-open-file-other-window))
-  :config
-  (setq deft-directory "/Users/jahfer/Library/Mobile Documents/com~apple~CloudDocs/Org/notes/"
-        deft-recursive t
-        deft-extensions '("org")
-	deft-default-extension "org"))
-
-(use-package zetteldeft
-  :after deft
-  :config
-  (zetteldeft-set-classic-keybindings)
-  (setq deft-use-filename-as-title t)
-  (setq deft-org-mode-title-prefix nil)
-  (setq zetteldeft-title-suffix "\n#+STARTUP: showall indent\n#+TAGS: ")
-  (setq zetteldeft-backlink-prefix "#+BACKLINK: ")
-  (setq zetteldeft-home-id "2020-07-29-1344"))
-
-;; Key bindings
-
-(defun reverse-transpose-sexps (arg)
-  (interactive "*p")
-  (transpose-sexps (- arg))
-  ;; when transpose-sexps can no longer transpose, it throws an error and code
-  ;; below this line won't be executed. So, we don't have to worry about side
-  ;; effects of backward-sexp and forward-sexp.
-  (backward-sexp (1+ arg))
-  (forward-sexp 1))
-
-;; Allow moving forms down
-(global-set-key (kbd "C-M-y") 'reverse-transpose-sexps)
-
-;; Bind some native Emacs functions.
-(global-set-key (kbd "C-x k")    'kill-this-buffer)
-
-;; Cursor management
-(global-set-key (kbd "C->") 'mc/mark-next-like-this)
-(global-set-key (kbd "C-c C-<") 'mc/mark-all-like-this)
-
-;; Bindings for [[http://magit.github.io][Magit]].
-(global-set-key (kbd "C-c m") 'magit-status)
-
-;; Bindings for =move-text=.
-(global-set-key (kbd "<s-up>")    'move-text-up)
-(global-set-key (kbd "<s-down>")  'move-text-down)
-
-;; org mode
-(global-set-key (kbd "C-c l") 'org-store-link)
-(global-set-key (kbd "C-c a") 'org-agenda)
-(global-set-key (kbd "C-c c") 'org-capture)
-
-;; helm
-;; (global-set-key (kbd "C-c h") 'helm-command-prefix)
-;; (global-unset-key (kbd "C-x c"))
-;; (global-set-key (kbd "M-x") 'helm-M-x)
-;; (global-set-key (kbd "C-x b") 'helm-mini)
-;; (global-set-key (kbd "C-x C-f") 'helm-find-files)
-;; (global-set-key (kbd "C-x C-r") 'helm-recentf)
-;; (global-set-key (kbd "C-c g") 'helm-google-suggest)
-;; (global-set-key (kbd "C-x C-r")  'helm-recentf)
-
-(global-set-key (kbd "C-=") #'text-scale-increase)
-(global-set-key (kbd "C--") #'text-scale-decrease)
-
-(global-set-key (kbd "C-c C-n") 'make-orgcapture-frame)
-
-;; (define-key helm-map (kbd "<tab>") 'helm-execute-persistent-action) ; rebind tab to run persistent action
-;; (define-key helm-map (kbd "C-i") 'helm-execute-persistent-action) ; make TAB works in terminal
-;; (define-key helm-map (kbd "C-z")  'helm-select-action) ; list actions using C-z
-(defun jh/switch-to-previous-buffer ()
-  "Switch to previously open buffer.
-Repeated invocations toggle between the two most recently open buffers."
-  (interactive)
-  (switch-to-buffer (other-buffer (current-buffer) 1)))
-
-(use-package key-chord
-  :config
-  (key-chord-mode 1)
-  (key-chord-define-global "BB" #'jh/switch-to-previous-buffer))
-
-;; projectile
-
-(require 'projectile)
-(define-key projectile-mode-map (kbd "C-c p") 'projectile-command-map)
-(projectile-mode +1)
-
-(defun jah-copy-file-path (&optional @dir-path-only-p)
+  (defun jh/copy-file-path (&optional @dir-path-only-p)
   "Copy the current buffer's file path or dired path to `kill-ring'.
 Result is full path.
 If `universal-argument' is called first, copy only the dir path.
 
 If in dired, copy the file/dir cursor is on, or marked files.
 
-If a buffer is not file and not dired, copy value of `default-directory' (which is usually the “current” dir when that buffer was created)
+If a buffer is not file and not dired, copy value of `default-directory'
+(which is usually the “current” dir when that buffer was created)
 
 URL `http://ergoemacs.org/emacs/emacs_copy_file_path.html'
 Version 2017-09-01"
@@ -708,16 +131,573 @@ Version 2017-09-01"
        (progn
          (message "File path copied: 「%s」" $fpath)
          $fpath )))))
+  
+  ;; Do not allow the cursor in the minibuffer prompt
+  (setq minibuffer-prompt-properties
+        '(read-only t cursor-intangible t face minibuffer-prompt))
+  (add-hook 'minibuffer-setup-hook #'cursor-intangible-mode)
 
-;; (setq helm-split-window-in-side-p           t ; open helm buffer inside current window, not occupy whole other window
-;;       helm-move-to-line-cycle-in-source     t ; move to end or beginning of source when reaching top or bottom of source.
-;;       helm-ff-search-library-in-sexp        t ; search for library in `require' and `declare-function' sexp.
-;;       helm-scroll-amount                    8 ; scroll 8 lines other window using M-<next>/M-<prior>
-;;       helm-ff-file-name-history-use-recentf t)
+  ;; Support opening new minibuffers from inside existing minibuffers.
+  (setq enable-recursive-minibuffers t)
+
+  (global-display-line-numbers-mode)
+
+  ;; Reload changed files from disk
+  (global-auto-revert-mode t)
+
+  ;; Emacs 28 and newer: Hide commands in M-x which do not work in the current
+  ;; mode.  Vertico commands are hidden in normal buffers. This setting is
+  ;; useful beyond Vertico.
+  (setq read-extended-command-predicate #'command-completion-default-include-p)
+
+  ;; Enable indentation+completion using the TAB key.
+  ;; `completion-at-point' is often bound to M-TAB.
+  (setq tab-always-indent 'complete)
+
+  (setq package-enable-at-startup t)
+  (setq package-archives '(("melpa" . "https://melpa.org/packages/")
+                           ("org" . "https://orgmode.org/elpa/")
+                           ("gnu" . "https://elpa.gnu.org/packages/")))
+  
+  (require 'use-package-ensure)
+  (setq use-package-always-ensure t))
+
+(use-package auto-package-update
+  :config
+  (setq auto-package-update-delete-old-versions t)
+  (setq auto-package-update-hide-results t)
+  (auto-package-update-maybe))
+
+(use-package exec-path-from-shell
+  :config
+  (when (memq window-system '(mac ns x))
+    (exec-path-from-shell-initialize)))
+
+(use-package visual-fill-column
+  :hook
+  (org-mode . visual-fill-column-mode)
+  :custom
+  (visual-fill-column-width 80)
+  (visual-fill-column-center-text t))
+
+(use-package eglot
+  :config
+  (add-to-list 'eglot-server-programs '((ruby-mode ruby-ts-mode) "ruby-lsp")))
+
+(use-package rg
+  :config
+  (rg-enable-menu))
+
+(use-package compat)
+
+(use-package vertico
+  :after (compat)
+  :init
+  (vertico-mode)
+  (setq vertico-scroll-margin 100))
+
+(use-package savehist
+  :init
+  (savehist-mode 1))
+
+(use-package magit)
+
+(use-package graphql-mode)
+
+(use-package lua-mode)
+
+(use-package mmm-mode
+  :config
+  (setq mmm-global-mode 'maybe)
+  (setq mmm-parse-when-idle 't)
+  (mmm-add-classes
+   '((markdown-graphql
+      :submode graphql-mode
+      :front "^```graphql[\n\r]+"
+      :back "^```$")))
+  (mmm-add-mode-ext-class 'markdown-mode nil 'markdown-graphql))
+
+(use-package orderless
+  :init
+  (setq completion-styles '(orderless basic)
+        completion-category-defaults nil
+        completion-category-overrides '((file (styles partial-completion)))))
+
+(use-package corfu
+  ;; Dropdown auto-complete
+  :init
+  (global-corfu-mode)
+  (setq corfu-auto t)
+  (setq corfu-quit-no-match 'separator))
+
+;; Example configuration for Consult
+(use-package consult
+  ;; Replace bindings. Lazily loaded due by `use-package'.
+  :bind (;; C-c bindings in `mode-specific-map'
+         ("C-c M-x" . consult-mode-command)
+         ("C-c h" . consult-history)
+         ("C-c k" . consult-kmacro)
+         ("C-c m" . consult-man)
+         ("C-c i" . consult-info)
+         ([remap Info-search] . consult-info)
+         ;; C-x bindings in `ctl-x-map'
+         ("C-x M-:" . consult-complex-command)     ;; orig. repeat-complex-command
+         ("C-x b" . consult-buffer)                ;; orig. switch-to-buffer
+         ("C-x 4 b" . consult-buffer-other-window) ;; orig. switch-to-buffer-other-window
+         ("C-x 5 b" . consult-buffer-other-frame)  ;; orig. switch-to-buffer-other-frame
+         ("C-x t b" . consult-buffer-other-tab)    ;; orig. switch-to-buffer-other-tab
+         ("C-x r b" . consult-bookmark)            ;; orig. bookmark-jump
+         ("C-x p b" . consult-project-buffer)      ;; orig. project-switch-to-buffer
+         ;; Custom M-# bindings for fast register access
+         ("M-#" . consult-register-load)
+         ("M-'" . consult-register-store)          ;; orig. abbrev-prefix-mark (unrelated)
+         ("C-M-#" . consult-register)
+         ;; Other custom bindings
+         ("M-y" . consult-yank-pop)                ;; orig. yank-pop
+         ;; M-g bindings in `goto-map'
+         ("M-g e" . consult-compile-error)
+         ("M-g f" . consult-flymake)               ;; Alternative: consult-flycheck
+         ("M-g g" . consult-goto-line)             ;; orig. goto-line
+         ("M-g M-g" . consult-goto-line)           ;; orig. goto-line
+         ("M-g o" . consult-outline)               ;; Alternative: consult-org-heading
+         ("M-g m" . consult-mark)
+         ("M-g k" . consult-global-mark)
+         ("M-g i" . consult-imenu)
+         ("M-g I" . consult-imenu-multi)
+         ;; M-s bindings in `search-map'
+         ("M-s d" . consult-find)                  ;; Alternative: consult-fd
+         ("M-s c" . consult-locate)
+         ("M-s g" . consult-grep)
+         ("M-s G" . consult-git-grep)
+         ("M-s r" . consult-ripgrep)
+         ("M-s l" . consult-line)
+         ("M-s L" . consult-line-multi)
+         ("M-s k" . consult-keep-lines)
+         ("M-s u" . consult-focus-lines)
+         ;; Isearch integration
+         ("M-s e" . consult-isearch-history)
+         :map isearch-mode-map
+         ("M-e" . consult-isearch-history)         ;; orig. isearch-edit-string
+         ("M-s e" . consult-isearch-history)       ;; orig. isearch-edit-string
+         ("M-s l" . consult-line)                  ;; needed by consult-line to detect isearch
+         ("M-s L" . consult-line-multi)            ;; needed by consult-line to detect isearch
+         ;; Minibuffer history
+         :map minibuffer-local-map
+         ("M-s" . consult-history)                 ;; orig. next-matching-history-element
+         ("M-r" . consult-history))                ;; orig. previous-matching-history-element
+
+  ;; Enable automatic preview at point in the *Completions* buffer. This is
+  ;; relevant when you use the default completion UI.
+  :hook (completion-list-mode . consult-preview-at-point-mode)
+
+  ;; The :init configuration is always executed (Not lazy)
+  :init
+  ;; Optionally configure the register formatting. This improves the register
+  ;; preview for `consult-register', `consult-register-load',
+  ;; `consult-register-store' and the Emacs built-ins.
+  (setq register-preview-delay 0.5
+        register-preview-function #'consult-register-format)
+
+  ;; Optionally tweak the register preview window.
+  ;; This adds thin lines, sorting and hides the mode line of the window.
+  (advice-add #'register-preview :override #'consult-register-window)
+
+  ;; Use Consult to select xref locations with preview
+  (setq xref-show-xrefs-function #'consult-xref
+        xref-show-definitions-function #'consult-xref)
+
+  ;; Configure other variables and modes in the :config section,
+  ;; after lazily loading the package.
+  :config
+
+  ;; Optionally configure preview. The default value
+  ;; is 'any, such that any key triggers the preview.
+  ;; (setq consult-preview-key 'any)
+  ;; (setq consult-preview-key "M-.")
+  ;; (setq consult-preview-key '("S-<down>" "S-<up>"))
+  ;; For some commands and buffer sources it is useful to configure the
+  ;; :preview-key on a per-command basis using the `consult-customize' macro.
+  (consult-customize
+   consult-theme :preview-key '(:debounce 0.2 any)
+   consult-ripgrep consult-git-grep consult-grep
+   consult-bookmark consult-recent-file consult-xref
+   consult--source-bookmark consult--source-file-register
+   consult--source-recent-file consult--source-project-recent-file
+   ;; :preview-key "M-."
+   :preview-key '(:debounce 0.4 any))
+
+  ;; Optionally configure the narrowing key.
+  ;; Both < and C-+ work reasonably well.
+  (setq consult-narrow-key "<") ;; "C-+"
+
+  ;; Optionally make narrowing help available in the minibuffer.
+  ;; You may want to use `embark-prefix-help-command' or which-key instead.
+  ;; (define-key consult-narrow-map (vconcat consult-narrow-key "?") #'consult-narrow-help)
+
+  ;; By default `consult-project-function' uses `project-root' from project.el.
+  ;; Optionally configure a different project root function.
+  ;;;; 1. project.el (the default)
+  ;; (setq consult-project-function #'consult--default-project--function)
+  ;;;; 2. vc.el (vc-root-dir)
+  ;; (setq consult-project-function (lambda (_) (vc-root-dir)))
+  ;;;; 3. locate-dominating-file
+  ;; (setq consult-project-function (lambda (_) (locate-dominating-file "." ".git")))
+  ;;;; 4. projectile.el (projectile-project-root)
+  ;; (autoload 'projectile-project-root "projectile")
+  ;; (setq consult-project-function (lambda (_) (projectile-project-root)))
+  ;;;; 5. No project support
+  ;; (setq consult-project-function nil)
+)
+
+(use-package markdown-mode)
+
+(use-package marginalia
+  :bind
+  (:map minibuffer-local-map
+        ("M-A" . marginalia-cycle))
+  :init
+  (marginalia-mode))
+
+(use-package ace-window
+  :bind
+  (("M-o" . ace-window))
+  ;; x - delete window
+  ;; m - swap windows
+  ;; M - move window
+  ;; c - copy window
+  ;; j - select buffer
+  ;; n - select the previous window
+  ;; F - split window fairly, either vertically or horizontally
+  ;; v - split window vertically
+  ;; b - split window horizontally
+  ;; o - maximize current window
+  ;; ? - show these command bindings
+  :init
+  (setq aw-keys '(?a ?s ?d ?f ?g ?h ?j ?k ?l))
+
+  (defun jh/ace-tear-off-window ()
+  "Select a window with ace-window and tear it off the frame.
+   This displays the window in a new frame, see `tear-off-window'."
+  (interactive)
+  (when-let ((win (aw-select " ACE"))
+             (buf (window-buffer win))
+             (frame (make-frame)))
+    (select-frame frame)
+    (pop-to-buffer-same-window buf)
+    (delete-window win)))
+
+  (defun jh/ace-window-one-command ()
+    (interactive)
+    (let ((win (aw-select " ACE")))
+      (when (windowp win)
+	(with-selected-window win
+          (let* ((command (key-binding
+                           (read-key-sequence
+                            (format "Run in %s..." (buffer-name)))))
+		 (this-command command))
+            (call-interactively command))))))
+
+  (keymap-global-set "C-x O" 'jh/ace-window-one-command)
+  
+  (defun jh/ace-window-prefix ()
+  "Use `ace-window' to display the buffer of the next command.
+   The next buffer is the buffer displayed by the next command invoked
+   immediately after this command (ignoring reading from the minibuffer).
+   Creates a new window before displaying the buffer.
+   When `switch-to-buffer-obey-display-actions' is non-nil,
+   `switch-to-buffer' commands are also supported."
+  (interactive)
+  (display-buffer-override-next-command
+   (lambda (buffer _)
+     (let (window type)
+       (setq
+        window (aw-select (propertize " ACE" 'face 'mode-line-highlight))
+        type 'reuse)
+       (cons window type)))
+   nil "[ace-window]")
+  (message "Use `ace-window' to display next command buffer..."))
+
+  (keymap-global-set "C-x 4 o" 'jh/ace-window-prefix))
+
+(use-package mood-line
+  :config
+  (mood-line-mode)
+  
+  :custom
+  (setq mood-line-glyph-alist mood-line-glyphs-unicode))
+
+(use-package gptel
+  :bind
+  (("C-c g g" . gptel)
+   ("C-c g ." . gptel-send)
+   ("C-c g k" . gptel-abort))
+  :config
+  (setq-default gptel-org-branching-context t)
+  (setq-default gptel-backend
+		(gptel-make-openai "llama-cpp"
+		  :stream t
+		  :protocol "http"
+		  :host "localhost:11311"
+		  :key nil
+		  :models '("dummy"))))
+
+(use-package ts
+  :init
+  (defun this-monday ()
+    (let* ((now (ts-now))
+           (day-of-week (ts-dow now))
+           (days-since-monday (- day-of-week 1)))
+      (ts-adjust 'day (- days-since-monday) now)))
+  :custom
+  (ts-default-format "%Y-%m-%d %H:%M"))
+
+(use-package org
+  :after (ts)
+  
+  :bind
+  (("C-c l" . org-store-link)
+   ("C-c a" . org-agenda)
+   ("C-c c" . org-capture))
+
+  :custom
+  (custom-set-faces
+   '(org-level-1 ((t (:foreground "#3F4B3B" :weight bold :height 1.0))))
+   '(org-level-2 ((t (:foreground "#44633F" :weight bold :height 1.0))))
+   '(org-level-3 ((t (:foreground "#5A9367" :weight bold :height 1.0))))
+   '(org-level-4 ((t (:foreground "#5CAB7D" :weight bold :height 1.0))))
+   '(org-level-5 ((t (:foreground "#46494C" :weight bold :height 1.0))))
+   '(org-level-6 ((t (:foreground "#4C5C68" :weight bold :height 1.0))))
+   '(org-level-7 ((t (:foreground "#1985A1" :weight bold :height 1.0))))
+   '(org-level-8 ((t (:foreground "#FFA69E" :weight bold :height 1.0)))))
+
+  :init
+  (require 'org-duration)
+  
+  (defun jh/org-agenda-to-appt ()
+    (interactive)
+    (setq appt-time-msg-list nil)
+    (org-agenda-to-appt))
+
+  (defun get-attr-quote-properties ()
+    "Get the attr_quote properties of the first quote block in the current buffer."
+    (interactive)
+    (save-excursion
+      (goto-char (point-min))
+      (when (re-search-forward "^#\\+begin_quote" nil t)
+	(let ((element (org-element-at-point)))
+          (when (eq (org-element-type element) 'quote-block)
+          (org-element-property :attr_quote element))))))
+  
+  (defun activate-capture-frame ()
+    "run org-capture in capture frame"
+    (select-frame-by-name "capture")
+    (switch-to-buffer (get-buffer-create "*scratch*"))
+    (org-capture))
+  
+  (defun jh/update-org-and-refresh-agenda ()
+    "Revert org buffer without confirmation and refresh agenda."
+    (interactive)
+    (when (eq major-mode 'org-mode)
+      (revert-buffer t t))  ; Reverts the buffer without confirmation
+    (org-agenda nil "w"))   ; Refreshes the agenda view
+
+  (defun jh/disable-electric-pair-for-org-mode ()
+    "Disable electric pair mode for < in org-mode."
+    (setq-local electric-pair-inhibit-predicate
+		(lambda (c)
+                  (if (char-equal c ?<) t (electric-pair-default-inhibit c)))))
+
+  :hook
+  (org-agenda-finalize . jh/org-agenda-to-appt)
+  (text-mode . turn-on-visual-line-mode)
+  (org-mode . jh/disable-electric-pair-for-org-mode)
+  
+  :config
+  (require 'ox-md)
+  (require 'org-tempo)
+  (require 'ol)
+  (require 'ob-ruby)
+  
+  (jh/org-agenda-to-appt)
+  (appt-activate t)
+  (run-at-time "24:01" nil 'jh/org-agenda-to-appt)
+
+  (setq org-agenda-window-setup 'only-window)
+  
+  (setq org-directory "/Users/jahfer/Documents/Org/")
+  
+  (add-to-list 'org-src-lang-modes '("graphql" . graphql))
+
+  (org-babel-do-load-languages
+   'org-babel-load-languages
+   '((ruby . t)))
+  
+  (setq-default
+   org-log-done 'time
+   org-support-shift-select t
+   org-agenda-compact-blocks nil
+   org-outline-path-complete-in-steps nil
+   org-refile-allow-creating-parent-nodes 'confirm
+   org-refile-use-outline-path 'file
+   org-priority-faces '((?A . (:foreground "red"))
+			(?B . (:foreground "#c195dc"))
+			(?C . (:foreground "grey")))
+   org-todo-keyword-faces '(("CANCELED" . (:foreground "red")))
+   org-agenda-prefix-format '(
+			      (agenda  . " %i %?-12t% s") ;; file name + org-agenda-entry-type
+			      ;;(agenda  . "  • ")
+			      (timeline  . "  % s")
+			      (todo  . " %-12:c")
+			      ;;(tags  . "  ")
+			      (tags . " %i %-16c")
+			      (search . " %i %-12:c"))
+   org-agenda-block-separator nil
+   org-agenda-hide-tags-regexp "work"
+   org-agenda-files (list
+		     (concat org-directory "notes/daily/")
+		     (concat org-directory "tasks.org")
+		     (concat org-directory "events.org")
+		     (concat org-directory "inbox.org"))
+   org-default-notes-file (concat org-directory "inbox.org")
+   org-refile-targets '((("/Users/jahfer/Documents/Org/tasks.org") . (:maxlevel . 3)))
+   org-capture-templates '(("n" "Note" entry (file+headline "/Users/jahfer/Documents/Org/inbox.org" "Inbox Notes")
+                            "* %?\n" :clock-in t :clock-resume t)
+                           ("t" "Todo" entry (file+headline "/Users/jahfer/Documents/Org/inbox.org" "Inbox Tasks")
+                            "* TODO %?\n"))
+   org-agenda-custom-commands
+   '(("w" "Work list"
+      ((tags "unfiled/TODO"
+	     ((org-agenda-overriding-header "🗄️ Unfiled")))
+       (tags (concat "+CLOSED>=\"<" (ts-format "%Y-%m-%d" (this-monday)) ">\"+TODO=\"DONE\"")
+	           (;(org-agenda-archives-mode t)
+	            (org-agenda-overriding-header (concat "\n" (make-string (- (window-width) 4) ?-) "\n\n" "🏁 Week in Review"))))
+       (tags "work/STARTED|REVIEWED"
+	     ((org-agenda-overriding-header (concat "\n" "🛠️ In Progress"))))
+       (tags-todo "work+PRIORITY=\"A\"+TODO=\"TODO\""
+                  ((org-agenda-overriding-header (concat "\n" (make-string (- (window-width) 4) ?-) "\n\n" "↪️ Next"))))
+       (tags "work/WAITING"
+             ((org-agenda-overriding-header (concat "\n" "⚠️ Stalled"))))
+       (tags-todo "work+PRIORITY=\"B\"+TODO=\"TODO\""
+		              ((org-agenda-overriding-header (concat "\n" (make-string (- (window-width) 4) ?-) "\n\n" "📋 Todo"))))
+       (agenda ""
+	             ((org-agenda-overriding-header (concat "\n" (make-string (- (window-width) 4) ?-) "\n\n" "🗓️ Calendar"))
+		            (org-agenda-span 'day)
+		            (org-agenda-files (list
+				                           (concat org-directory "tasks.org")
+				                           (concat org-directory "events.org")
+				                           (concat org-directory "notes/daily")))
+		            (org-agenda-scheduled-leaders '("" "LATE (%2dx):"))))
+       (tags "work+PRIORITY=\"C\"+TODO=\"TODO\""
+             ((org-agenda-overriding-header (concat "\n" (make-string (- (window-width) 4) ?-) "\n\n" "↩️ Someday")))))
+      ()
+      ("/Users/jahfer/Documents/Org/public/agenda.html"))
+     ("h" "Home list"
+      ((tags "home/TODO"
+             ((org-agenda-overriding-header "Todo:")))))))
+  (org-add-link-type "gh" 'org-gh-open))
+
+(use-package org-timeblock)
+
+(use-package org-roam
+  :hook
+  (org-mode . jh/org-mode-setup)
+  
+  :custom
+  (org-roam-directory (file-truename "/Users/jahfer/Documents/Org/notes/"))
+  
+  :bind (("C-c r b" . org-roam-buffer-toggle)
+         ("C-c r f" . org-roam-node-find)
+         ("C-c r g" . org-roam-graph)
+         ("C-c r i" . org-roam-node-insert)
+         ("C-c r c" . org-roam-capture)
+	 ("C-c r a" . (lambda () (interactive) (org-roam-node-find nil "Index")))
+         ;;	("C-c r x" . (lambda () (find-file "/Users/jahfer/Documents/Org/notes/20240412085436-index.org")))
+         ("C-c r j" . org-roam-dailies-capture-today)
+	 ("C-c r t" . org-roam-dailies-goto-today))
+  
+  :config
+  ;; If you're using a vertical completion framework, you might want a more informative completion interface
+  (setq org-roam-node-display-template (concat "${title:*} " (propertize "${tags:10}" 'face 'org-tag)))
+  (org-roam-db-autosync-mode)
+  (setq org-id-track-globally t)
+  (setq org-roam-capture-templates
+	'(("d" "default" plain "* %?"
+	   :target (file+head "%<Y%m%d%H%M%S>-${slug}.org" "#+startup: content indent hidestars\n#+title: ${title}")
+	   :unnarrowed t)))
+  ;; If using org-roam-protocol
+  (require 'org-roam-protocol)
+
+  (defun jh/org-roam-get-title-id-completions ()
+    "Get a list of Org-roam node titles and their paths for completion."
+    (mapcar (lambda (node)
+              (cons (org-roam-node-title node)
+                    (org-roam-node-id node)))
+            (org-roam-node-list)))
+
+  (defun jh/org-roam-completion-at-point ()
+    (when (and (derived-mode-p 'org-mode)
+               (looking-back "@\\(\\w*\\)" (line-beginning-position)))
+      (let ((bounds (bounds-of-thing-at-point 'symbol)))
+	(list (car bounds) (cdr bounds)
+              (completion-table-dynamic
+               (lambda (_)
+		 (jh/org-roam-get-title-id-completions)))
+              :exclusive 'no))))
+
+  (defun jh/org-roam-insert-id-link (completion)
+    "Insert Org-roam id link for the selected COMPLETION."
+    (let* ((title (car completion))
+           (id (cdr completion)))
+      (delete-region (car (bounds-of-thing-at-point 'symbol))
+                     (cdr (bounds-of-thing-at-point 'symbol)))
+      (insert (format "[[id:%s][%s]]" id title))))
+  
+  (defun jh/org-mode-setup ()
+    (setq-local completion-at-point-functions
+		(list #'jh/org-roam-completion-at-point))
+    (setq-local corfu-exit-function #'jh/org-roam-insert-id-link)))
+
+(use-package consult-org-roam
+   :after (consult org-roam)
+   :init
+   (require 'consult-org-roam)
+   ;; Activate the minor mode
+   (consult-org-roam-mode 1)
+   :custom
+   ;; Use `ripgrep' for searching with `consult-org-roam-search'
+   (consult-org-roam-grep-func #'consult-ripgrep)
+   ;; Configure a custom narrow key for `consult-buffer'
+   (consult-org-roam-buffer-narrow-key ?r)
+   ;; Display org-roam buffers right after non-org-roam buffers
+   ;; in consult-buffer (and not down at the bottom)
+   (consult-org-roam-buffer-after-buffers t)
+   :config
+   ;; Eventually suppress previewing for certain functions
+   (consult-customize
+    consult-org-roam-forward-links
+    :preview-key "M-.")
+   :bind
+   ;; Define some convenient keybindings as an addition
+   ("C-c r b" . consult-org-roam-backlinks)
+   ("C-c r B" . consult-org-roam-backlinks-recursive)
+   ("C-c r l" . consult-org-roam-forward-links)
+   ("C-c r r" . consult-org-roam-search))
+
 (custom-set-variables
  ;; custom-set-variables was added by Custom.
  ;; If you edit it by hand, you could mess it up, so be careful.
  ;; Your init file should contain only one such instance.
  ;; If there is more than one, they won't work right.
+ '(custom-safe-themes
+   '("1ea82e39d89b526e2266786886d1f0d3a3fa36c87480fad59d8fab3b03ef576e" default))
  '(package-selected-packages
-   '(key-chord company lsp-ui flycheck-rust flycheck cargo toml-mode elpher projectile-ripgrep ripgrep hydra magit exec-path-from-shell graphviz-dot-mode zetteldeft deft plantuml-mode polymode visual-fill-column uncrustify-mode ivy-rich seq paredit multiple-cursors move-text monokai-theme ido-vertical-mode flx-ido use-package auto-complete org-sidebar ruby-end counsel swiper ivy yasnippet helm-fuzzy-find lsp-mode rust-mode doom-themes org cl-lib undo-tree tuareg tree-mode sublime-themes spaceline-all-the-icons smex projectile-rails org-sticky-header htmlize helm-projectile helm-mode-manager color-theme-solarized)))
+   '(ob-ruby consult-org-roam org-tempo lua-mode visual-fill-column org-timeblock compat compatz gptel mmm-mode graphql-mode rg markdown-mode exec-path-from-shell vertico-directory spacious-padding casual auto-package-update magit minions mood-line all-the-icons-completion all-the-icons ef-themes modus-themes ace-window marginalia corfu orderless vertico)))
+(custom-set-faces
+ ;; custom-set-faces was added by Custom.
+ ;; If you edit it by hand, you could mess it up, so be careful.
+ ;; Your init file should contain only one such instance.
+ ;; If there is more than one, they won't work right.
+ '(keycast-key ((t)))
+ '(tab-line-tab ((t)))
+ '(tab-line-tab-active ((t)))
+ '(tab-line-tab-inactive ((t))))
